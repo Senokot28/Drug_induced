@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Dashboard: สถิติการวินิจฉัยโรค</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: 'Sarabun', sans-serif; padding: 20px; background-color: #f4f7f6; }
+        .container { background-color: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); width: 90%; max-width: 900px; margin: auto; }
+        h2 { text-align: center; color: #333; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h2>📊 10 อันดับโรคที่พบมากที่สุด (Live จาก Google Sheets)</h2>
+        <canvas id="myChart"></canvas>
+    </div>
+
+    <script>
+        // ลิงก์ Google Sheets ที่ถูกแปลงเป็นแบบดึงข้อมูล CSV แล้ว
+        const sheetUrl = "https://docs.google.com/spreadsheets/d/1racw2pgO4onmvXtUSkkLyjf4wD0MnXOlg25WSFDPZIo/export?format=csv&gid=1546273871";
+
+        Papa.parse(sheetUrl, {
+            download: true,
+            header: true,
+            complete: function(results) {
+                const rawData = results.data;
+                
+                // 1. นับจำนวนในคอลัมน์ name_diag
+                const counts = {};
+                rawData.forEach(row => {
+                    const diag = row["name_diag"]; // ใช้คอลัมน์ชื่อโรค
+                    if (diag && diag.trim() !== "") {
+                        counts[diag] = (counts[diag] || 0) + 1;
+                    }
+                });
+
+                // 2. แปลงเป็น Array เพื่อเรียงลำดับจากมากไปน้อย
+                const sortedData = Object.keys(counts).map(key => {
+                    return { label: key, value: counts[key] };
+                }).sort((a, b) => b.value - a.value); // เรียงจากมากไปน้อย
+
+                // 3. ตัดเอาแค่ Top 10 มาแสดงผล
+                const top10 = sortedData.slice(0, 10);
+                const labels = top10.map(item => item.label);
+                const dataValues = top10.map(item => item.value);
+
+                // 4. วาดกราฟ
+                const ctx = document.getElementById('myChart').getContext('2d');
+                new Chart(ctx, {
+                    type: 'bar', // ถ้าอยากได้กราฟแนวนอน ให้ตั้งค่า indexAxis ด้านล่าง
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'จำนวนผู้ป่วย (ราย)',
+                            data: dataValues,
+                            backgroundColor: 'rgba(54, 162, 235, 0.6)',
+                            borderColor: 'rgba(54, 162, 235, 1)',
+                            borderWidth: 1,
+                            borderRadius: 5
+                        }]
+                    },
+                    options: {
+                        indexAxis: 'y', // เปลี่ยนเป็นกราฟแท่งแนวนอน (อ่านชื่อโรคยาวๆ ง่ายกว่า)
+                        responsive: true,
+                        plugins: {
+                            legend: { position: 'bottom' }
+                        }
+                    }
+                });
+            }
+        });
+    </script>
+</body>
+</html>
