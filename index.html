@@ -3,194 +3,353 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Drug-Induce KPH. 66-69</title>
+    <title>Antidote & Adverse Events Dashboard</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        body { font-family: 'Sarabun', sans-serif; padding: 20px; background-color: #f0f2f5; margin: 0; color: #333; }
-        .header-title { text-align: center; color: #1a237e; margin-bottom: 30px; font-size: 2em; font-weight: bold; }
+        /* ================== CSS สไตล์ ================== */
+        body { font-family: 'Sarabun', sans-serif; padding: 15px; background-color: #f4f7f6; margin: 0; color: #333; }
+        .header-title { text-align: center; color: #b71c1c; margin-bottom: 20px; font-size: 1.8em; font-weight: bold; }
         
-        .grid-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 20px; margin-bottom: 30px; }
-        .table-card { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
-        .table-card h3 { margin-top: 0; text-align: center; color: #3f51b5; border-bottom: 2px solid #eee; padding-bottom: 10px; }
-        
-        /* ตั้งค่าให้ตาราง Scroll ได้ และเห็นประมาณ 10 แถว */
-        .table-wrapper { max-height: 450px; overflow-y: auto; border: 1px solid #eee; border-radius: 5px; margin-bottom: 15px; }
-        table { width: 100%; border-collapse: collapse; font-size: 0.9em; }
+        /* แถบ Slicer */
+        .slicer-container { display: flex; flex-wrap: wrap; gap: 15px; justify-content: center; background: white; padding: 15px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 20px; }
+        .slicer-box { display: flex; flex-direction: column; min-width: 220px; flex: 1; max-width: 300px; }
+        .slicer-box label { font-size: 0.9em; font-weight: bold; color: #b71c1c; margin-bottom: 5px; }
+        .slicer-box select { padding: 10px; border-radius: 5px; border: 1px solid #ccc; font-size: 1em; outline: none; font-family: 'Sarabun', sans-serif; cursor: pointer; }
+
+        /* กล่อง KPI ตัวเลข */
+        .kpi-container { display: flex; flex-wrap: wrap; gap: 15px; margin-bottom: 20px; }
+        .kpi-card { flex: 1; min-width: 150px; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); text-align: center; border-bottom: 4px solid #e0e0e0; }
+        .kpi-card.kpi-cases { border-color: #1976d2; }
+        .kpi-card.kpi-qty { border-color: #d32f2f; }
+        .kpi-card.kpi-opd { border-color: #388e3c; }
+        .kpi-card.kpi-ipd { border-color: #f57c00; }
+        .kpi-title { font-size: 0.95em; color: #666; margin-bottom: 10px; font-weight: bold; }
+        .kpi-value { font-size: 2.2em; font-weight: bold; }
+        .val-cases { color: #1976d2; } .val-qty { color: #d32f2f; } .val-opd { color: #388e3c; } .val-ipd { color: #f57c00; }
+
+        /* พื้นที่กราฟ 2 คอลัมน์ */
+        .charts-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 20px; margin-bottom: 30px; }
+        .chart-card { background: white; padding: 15px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+        .chart-title { text-align: center; color: #333; font-size: 1.1em; margin-bottom: 15px; font-weight: bold; border-bottom: 1px solid #eee; padding-bottom: 10px; }
+        .canvas-wrapper { position: relative; width: 100%; height: 300px; }
+
+        /* พื้นที่ตารางด้านล่าง */
+        .table-card { background: white; padding: 15px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 30px; }
+        .table-wrapper { max-height: 400px; overflow: auto; border: 1px solid #eee; border-radius: 5px; -webkit-overflow-scrolling: touch; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.85em; min-width: 800px; }
         th, td { padding: 10px 8px; text-align: right; border-bottom: 1px solid #eee; }
         th:nth-child(1), td:nth-child(1) { text-align: center; width: 40px; }
-        th:nth-child(2), td:nth-child(2) { text-align: left; }
-        
-        /* ล็อกหัวตารางให้อยู่กับที่ตอนเลื่อน */
-        th { position: sticky; top: 0; background-color: #e8eaf6; color: #1a237e; z-index: 1; font-weight: bold; }
+        th:nth-child(2), td:nth-child(2), th:nth-child(3), td:nth-child(3) { text-align: left; } 
+        th { position: sticky; top: 0; background-color: #ffebee; color: #b71c1c; z-index: 1; font-weight: bold; white-space: nowrap; }
         tbody tr:hover { background-color: #f5f5f5; }
 
-        .btn-graph { 
-            display: block; width: 100%; padding: 10px; background-color: #3f51b5; color: white; 
-            border: none; border-radius: 5px; cursor: pointer; font-size: 1em; transition: 0.3s;
+        /* Footer */
+        .footer-link { text-align: center; margin-top: 20px; margin-bottom: 40px; font-size: 0.9em; color: #666; }
+        .footer-link a { color: #b71c1c; text-decoration: none; font-weight: bold; background-color: white; padding: 8px 15px; border-radius: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); display: inline-block; margin-top: 10px; transition: 0.3s;}
+        .footer-link a:hover { background-color: #b71c1c; color: white; }
+        
+        /* มือถือ */
+        @media (max-width: 600px) {
+            .charts-grid { grid-template-columns: 1fr; }
         }
-        .btn-graph:hover { background-color: #303f9f; }
-
-        .chart-section { display: none; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); max-width: 900px; margin: 0 auto 40px auto; }
-        .chart-section.active { display: block; }
     </style>
 </head>
 <body>
 
-    <div style="max-width: 1400px; margin: auto;">
-        <div class="header-title">Drug-Induce KPH. 66-69</div>
+    <div style="max-width: 1300px; margin: auto;">
+        <div class="header-title">🚨 Dashboard สถิติการใช้ยาต้านพิษและการแพ้ยา</div>
 
-        <div id="chartContainer" class="chart-section">
-            <h2 id="chartTitle" style="text-align: center; color: #1a237e; margin-top: 0;">กราฟ 10 อันดับ</h2>
-            <canvas id="myChart"></canvas>
+        <div class="slicer-container">
+            <div class="slicer-box">
+                <label for="yearFilter">📅 ปีงบประมาณ:</label>
+                <select id="yearFilter" onchange="updateDashboard()">
+                    <option value="all">รวมทุกปี (66-69)</option>
+                    <option value="66">ปี 2566</option>
+                    <option value="67">ปี 2567</option>
+                    <option value="68">ปี 2568</option>
+                    <option value="69">ปี 2569 (4เดือน)</option>
+                </select>
+            </div>
+            <div class="slicer-box">
+                <label for="drugFilter">💊 ชื่อยา (Drug Name):</label>
+                <select id="drugFilter" onchange="updateDashboard()">
+                    <option value="all">แสดงยาทุกชนิด</option>
+                </select>
+            </div>
+            <div class="slicer-box">
+                <label for="deptFilter">🏥 แผนก (Department):</label>
+                <select id="deptFilter" onchange="updateDashboard()">
+                    <option value="all">แสดงทุกแผนก</option>
+                </select>
+            </div>
         </div>
 
-        <div class="grid-container">
-            <div class="table-card">
-                <h3>ผู้ป่วยทั้งหมด (รวม)</h3>
-                <div class="table-wrapper"><table id="tableTotal"></table></div>
-                <button class="btn-graph" onclick="showGraph('total', 'กราฟ 10 อันดับโรค - ผู้ป่วยทั้งหมด (รวม)')">📊 ดูกราฟ Top 10 (รวม)</button>
+        <div class="kpi-container">
+            <div class="kpi-card kpi-cases">
+                <div class="kpi-title">ผู้ป่วยทั้งหมด (Cases)</div>
+                <div class="kpi-value val-cases" id="kpiCases">0</div>
             </div>
-
-            <div class="table-card">
-                <h3>ผู้ป่วยนอก (OPD)</h3>
-                <div class="table-wrapper"><table id="tableOPD"></table></div>
-                <button class="btn-graph" onclick="showGraph('opd', 'กราฟ 10 อันดับโรค - ผู้ป่วยนอก (OPD)')">📊 ดูกราฟ Top 10 (OPD)</button>
+            <div class="kpi-card kpi-qty">
+                <div class="kpi-title">ปริมาณยาที่ใช้ (Total QTY)</div>
+                <div class="kpi-value val-qty" id="kpiQty">0</div>
             </div>
-
-            <div class="table-card">
-                <h3>ผู้ป่วยใน (IPD)</h3>
-                <div class="table-wrapper"><table id="tableIPD"></table></div>
-                <button class="btn-graph" onclick="showGraph('ipd', 'กราฟ 10 อันดับโรค - ผู้ป่วยใน (IPD)')">📊 ดูกราฟ Top 10 (IPD)</button>
+            <div class="kpi-card kpi-opd">
+                <div class="kpi-title">ผู้ป่วยนอก (OPD)</div>
+                <div class="kpi-value val-opd" id="kpiOPD">0</div>
+            </div>
+            <div class="kpi-card kpi-ipd">
+                <div class="kpi-title">ผู้ป่วยใน (IPD)</div>
+                <div class="kpi-value val-ipd" id="kpiIPD">0</div>
             </div>
         </div>
+
+        <div class="charts-grid">
+            <div class="chart-card">
+                <div class="chart-title" id="titleDrugChart">🍩 สัดส่วนการใช้ยา (ตามจำนวนเคส)</div>
+                <div class="canvas-wrapper"><canvas id="drugDonutChart"></canvas></div>
+            </div>
+            <div class="chart-card">
+                <div class="chart-title">📊 10 อันดับโรคที่ใช้ยามากที่สุด</div>
+                <div class="canvas-wrapper"><canvas id="diagBarChart"></canvas></div>
+            </div>
+            <div class="chart-card">
+                <div class="chart-title">🏥 5 อันดับแผนกที่รับการรักษา</div>
+                <div class="canvas-wrapper"><canvas id="deptBarChart"></canvas></div>
+            </div>
+            <div class="chart-card">
+                <div class="chart-title">📈 เทรนด์การใช้ยา 4 ปี (66-69)</div>
+                <div class="canvas-wrapper"><canvas id="trendLineChart"></canvas></div>
+            </div>
+        </div>
+
+        <div class="table-card">
+            <div class="chart-title" style="border:none; text-align:left; color:#b71c1c;">📋 ตารางสรุปรายละเอียดการใช้ยา</div>
+            <div class="table-wrapper">
+                <table id="dataTable">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Diagnosis (รหัส/โรค)</th>
+                            <th>ชื่อยา (Drug Name)</th>
+                            <th>แผนกหลัก</th>
+                            <th>จำนวนผู้ป่วย (Cases)</th>
+                            <th>ปริมาณยา (Total Qty)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="dataTableBody">
+                        </tbody>
+                </table>
+            </div>
+        </div>
+
         <div class="footer-link">
-            Raw data &gt;&gt; 
-            <a href="https://docs.google.com/spreadsheets/d/1racw2pgO4onmvXtUSkkLyjf4wD0MnXOlg25WSFDPZIo/edit?gid=1546273871#gid=1546273871" target="_blank">
-                เปิด Google Sheets
-            </a>
+            Raw data &gt;&gt; <br>
+            <a href="https://docs.google.com/spreadsheets/d/1FI9XEkbiOkr8Ml9wZ_E0eah1ycAj0mMzpPnOr_spGHg/edit?gid=1618087099#gid=1618087099" target="_blank">เปิด Data link Diag (Google Sheets)</a>
         </div>
     </div>
 
     <script>
-        const sheetUrl = "https://docs.google.com/spreadsheets/d/1racw2pgO4onmvXtUSkkLyjf4wD0MnXOlg25WSFDPZIo/export?format=csv&gid=1546273871";
+        // ใช้ลิงก์ Export CSV ของ Sheet ใหม่
+        const sheetUrl = "https://docs.google.com/spreadsheets/d/1FI9XEkbiOkr8Ml9wZ_E0eah1ycAj0mMzpPnOr_spGHg/export?format=csv&gid=1618087099";
         
-        let globalData = { total: [], opd: [], ipd: [] };
-        let currentChart = null;
+        let rawDataGlobal = [];
+        let uniqueDrugs = new Set();
+        let uniqueDepts = new Set();
+        let charts = { drugDonut: null, diagBar: null, deptBar: null, trendLine: null };
 
         Papa.parse(sheetUrl, {
             download: true,
             header: true,
             complete: function(results) {
-                const rawData = results.data;
-                const stats = { total: {}, opd: {}, ipd: {} };
-
-                rawData.forEach(row => {
-                    const diag = row["name_diag"] ? row["name_diag"].trim() : "";
-                    if (!diag) return;
-
-                    const anValue = row["an"] ? row["an"].trim() : "";
+                rawDataGlobal = results.data.filter(row => row["name_diag"] || row["drug_name"]).map(row => {
+                    // ทำความสะอาดและดึงข้อมูลแต่ละคอลัมน์
+                    const diag = (row["name_diag"] || row["diag"] || row["pdx"] || "ไม่ระบุ").trim();
+                    const tname = (row["Tname"] || row["tname"] || "").trim();
+                    const drug = (row["drug_name"] || row["drug"] || "ไม่ระบุยา").trim();
+                    const dept = (row["department"] || row["แผนก"] || "ไม่ระบุแผนก").trim();
+                    const qty = parseFloat(row["qty"] || row["QTY"] || 0) || 0;
+                    
+                    const anValue = (row["an"] || "").trim();
                     const type = anValue === "" ? "opd" : "ipd";
                     
-                    // ดึงปีงบประมาณและแปลงให้อยู่ในรูปแบบตัวเลขสั้น (66, 67, 68, 69)
-                    let yearRaw = row["BDG_YEAR"] ? row["BDG_YEAR"].toString().trim() : "";
+                    // ดึงปีงบประมาณ
+                    let bdgYear = (row["BDG_YEAR"] || row["vstdate"] || "").toString();
                     let year = "other";
-                    if (yearRaw.includes("66") || yearRaw === "2566") year = "66";
-                    else if (yearRaw.includes("67") || yearRaw === "2567") year = "67";
-                    else if (yearRaw.includes("68") || yearRaw === "2568") year = "68";
-                    else if (yearRaw.includes("69") || yearRaw === "2569") year = "69";
+                    if (bdgYear.includes("66") || bdgYear === "2566" || bdgYear.includes("2023")) year = "66";
+                    else if (bdgYear.includes("67") || bdgYear === "2567" || bdgYear.includes("2024")) year = "67";
+                    else if (bdgYear.includes("68") || bdgYear === "2568" || bdgYear.includes("2025")) year = "68";
+                    else if (bdgYear.includes("69") || bdgYear === "2569" || bdgYear.includes("2026")) year = "69";
 
-                    // ฟังก์ชันผู้ช่วยบวกตัวเลข
-                    const addStat = (group) => {
-                        if (!stats[group][diag]) stats[group][diag] = { "66": 0, "67": 0, "68": 0, "69": 0, total: 0 };
-                        if (year !== "other") stats[group][diag][year]++;
-                        stats[group][diag].total++;
-                    };
+                    if(drug !== "ไม่ระบุยา") uniqueDrugs.add(drug);
+                    if(dept !== "ไม่ระบุแผนก") uniqueDepts.add(dept);
 
-                    addStat("total");
-                    addStat(type);
+                    return { diag, tname, drug, dept, qty, type, year };
                 });
 
-                // แปลง Object เป็น Array และเรียงลำดับจากมากไปน้อย
-                const formatData = (obj) => Object.keys(obj)
-                    .map(key => ({ name: key, ...obj[key] }))
-                    .sort((a, b) => b.total - a.total);
+                // เติม Dropdown ยา
+                const drugSelect = document.getElementById("drugFilter");
+                Array.from(uniqueDrugs).sort().forEach(d => {
+                    let option = document.createElement("option"); option.value = d; option.text = d;
+                    drugSelect.appendChild(option);
+                });
 
-                globalData.total = formatData(stats.total);
-                globalData.opd = formatData(stats.opd);
-                globalData.ipd = formatData(stats.ipd);
+                // เติม Dropdown แผนก
+                const deptSelect = document.getElementById("deptFilter");
+                Array.from(uniqueDepts).sort().forEach(d => {
+                    let option = document.createElement("option"); option.value = d; option.text = d;
+                    deptSelect.appendChild(option);
+                });
 
-                // สร้างตารางลงใน HTML
-                renderTable('tableTotal', globalData.total);
-                renderTable('tableOPD', globalData.opd);
-                renderTable('tableIPD', globalData.ipd);
+                updateDashboard();
             }
         });
 
-        function renderTable(elementId, dataArray) {
-            let html = `
-                <thead>
-                    <tr>
-                        <th>#</th>
-                        <th>ชื่อโรค</th>
-                        <th>ปี 66</th>
-                        <th>ปี 67</th>
-                        <th>ปี 68</th>
-                        <th>ปี 69<br><small>(4เดือน)</small></th>
-                        <th>รวม</th>
-                    </tr>
-                </thead>
-                <tbody>
-            `;
-            dataArray.forEach((item, index) => {
-                html += `
-                    <tr>
-                        <td>${index + 1}</td>
-                        <td>${item.name}</td>
-                        <td>${item["66"].toLocaleString()}</td>
-                        <td>${item["67"].toLocaleString()}</td>
-                        <td>${item["68"].toLocaleString()}</td>
-                        <td>${item["69"].toLocaleString()}</td>
-                        <td style="font-weight:bold; color:#1a237e;">${item.total.toLocaleString()}</td>
-                    </tr>
-                `;
+        function updateDashboard() {
+            const yFilter = document.getElementById("yearFilter").value;
+            const dFilter = document.getElementById("drugFilter").value;
+            const depFilter = document.getElementById("deptFilter").value;
+
+            // 1. กรองข้อมูลหลัก (ใช้ทั้ง 3 Slicers)
+            const filtered = rawDataGlobal.filter(row => {
+                const matchY = (yFilter === "all" || row.year === yFilter);
+                const matchD = (dFilter === "all" || row.drug === dFilter);
+                const matchDep = (depFilter === "all" || row.dept === depFilter);
+                return matchY && matchD && matchDep;
             });
-            html += '</tbody>';
-            document.getElementById(elementId).innerHTML = html;
+
+            let totalCases = 0, totalQty = 0, opdCnt = 0, ipdCnt = 0;
+            const drugStats = {};
+            const diagStats = {};
+            const deptStats = {};
+            const tableMap = {};
+
+            filtered.forEach(row => {
+                totalCases++;
+                totalQty += row.qty;
+                if (row.type === "opd") opdCnt++; else ipdCnt++;
+
+                // นับสัดส่วนยา
+                if (!drugStats[row.drug]) drugStats[row.drug] = 0;
+                drugStats[row.drug]++;
+
+                // นับอันดับโรค
+                const fullDiag = row.diag + (row.tname ? ` (${row.tname})` : '');
+                if (!diagStats[fullDiag]) diagStats[fullDiag] = 0;
+                diagStats[fullDiag]++;
+
+                // นับแผนก
+                if (!deptStats[row.dept]) deptStats[row.dept] = 0;
+                deptStats[row.dept]++;
+
+                // ข้อมูลตาราง (จัดกลุ่มตาม โรค + ยา)
+                const tableKey = fullDiag + "|" + row.drug;
+                if(!tableMap[tableKey]) tableMap[tableKey] = { diag: fullDiag, drug: row.drug, dept: row.dept, cases: 0, qty: 0 };
+                tableMap[tableKey].cases++;
+                tableMap[tableKey].qty += row.qty;
+            });
+
+            // 2. ข้อมูลกราฟเทรนด์ 4 ปี (เมิน Slicer ปี, ใช้แค่ ยา กับ แผนก)
+            const trendStats = { "66": 0, "67": 0, "68": 0, "69": 0 };
+            rawDataGlobal.filter(row => {
+                const matchD = (dFilter === "all" || row.drug === dFilter);
+                const matchDep = (depFilter === "all" || row.dept === depFilter);
+                return matchD && matchDep;
+            }).forEach(row => {
+                if(row.year !== "other") trendStats[row.year]++;
+            });
+
+            // อัปเดต KPI
+            document.getElementById("kpiCases").innerText = totalCases.toLocaleString();
+            document.getElementById("kpiQty").innerText = totalQty.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 2});
+            document.getElementById("kpiOPD").innerText = opdCnt.toLocaleString();
+            document.getElementById("kpiIPD").innerText = ipdCnt.toLocaleString();
+
+            // เปลี่ยนชื่อหัวข้อโดนัทตาม Slicer
+            document.getElementById("titleDrugChart").innerText = dFilter === "all" ? "🍩 สัดส่วนการใช้ยา (ตามจำนวนเคส)" : `🍩 สัดส่วนแผนกที่จ่ายยา ${dFilter}`;
+
+            // วาดกราฟ
+            drawDrugDonut(dFilter === "all" ? drugStats : deptStats); // ถ้าเลือกยา 1 ตัว ให้โดนัทโชว์สัดส่วนแผนกแทน
+            drawDiagBar(diagStats);
+            drawDeptBar(deptStats);
+            drawTrendLine(trendStats);
+
+            // อัปเดตตาราง
+            const sortedTable = Object.values(tableMap).sort((a,b) => b.cases - a.cases);
+            let tbody = "";
+            sortedTable.forEach((item, idx) => {
+                tbody += `<tr>
+                    <td>${idx + 1}</td>
+                    <td>${item.diag}</td>
+                    <td>${item.drug}</td>
+                    <td style="text-align:center;">${item.dept}</td>
+                    <td>${item.cases.toLocaleString()}</td>
+                    <td style="font-weight:bold; color:#d32f2f;">${item.qty.toLocaleString(undefined, {maximumFractionDigits:2})}</td>
+                </tr>`;
+            });
+            document.getElementById("dataTableBody").innerHTML = tbody;
         }
 
-        function showGraph(type, titleText) {
-            const dataArray = globalData[type].slice(0, 10); // เอาแค่ 10 อันดับแรก
-            const labels = dataArray.map(item => item.name);
-            const dataValues = dataArray.map(item => item.total);
-
-            document.getElementById('chartContainer').classList.add('active');
-            document.getElementById('chartTitle').innerText = titleText;
+        // กราฟ 1: โดนัทชาร์ต
+        function drawDrugDonut(statsObj) {
+            const sorted = Object.keys(statsObj).map(k => ({name: k, val: statsObj[k]})).sort((a,b) => b.val - a.val);
+            const top5 = sorted.slice(0, 5);
+            const others = sorted.slice(5).reduce((sum, item) => sum + item.val, 0);
             
-            // เลื่อนหน้าจอขึ้นไปดูกราฟ
-            document.getElementById('chartContainer').scrollIntoView({ behavior: 'smooth' });
+            let labels = top5.map(i => i.name.length > 20 ? i.name.substring(0,20)+'...' : i.name);
+            let data = top5.map(i => i.val);
+            if(others > 0) { labels.push("อื่นๆ"); data.push(others); }
 
-            if (currentChart) { currentChart.destroy(); } // ลบกราฟเก่าออกก่อนวาดใหม่
+            if(charts.drugDonut) charts.drugDonut.destroy();
+            charts.drugDonut = new Chart(document.getElementById('drugDonutChart').getContext('2d'), {
+                type: 'doughnut',
+                data: { labels: labels, datasets: [{ data: data, backgroundColor: ['#ef5350', '#ec407a', '#ab47bc', '#7e57c2', '#5c6bc0', '#bdbdbd'], borderWidth: 1 }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { boxWidth: 12, font: {size: 11} } } } }
+            });
+        }
 
-            const ctx = document.getElementById('myChart').getContext('2d');
-            currentChart = new Chart(ctx, {
+        // กราฟ 2: 10 อันดับโรค
+        function drawDiagBar(statsObj) {
+            const top10 = Object.keys(statsObj).map(k => ({name: k, val: statsObj[k]})).sort((a,b) => b.val - a.val).slice(0, 10);
+            if(charts.diagBar) charts.diagBar.destroy();
+            charts.diagBar = new Chart(document.getElementById('diagBarChart').getContext('2d'), {
                 type: 'bar',
                 data: {
-                    labels: labels,
+                    labels: top10.map(i => i.name.length > 25 ? i.name.substring(0,25)+'...' : i.name),
+                    datasets: [{ label: 'จำนวนเคส', data: top10.map(i => i.val), backgroundColor: '#1976d2', borderRadius: 3 }]
+                },
+                options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+            });
+        }
+
+        // กราฟ 3: 5 อันดับแผนก
+        function drawDeptBar(statsObj) {
+            const top5 = Object.keys(statsObj).map(k => ({name: k, val: statsObj[k]})).sort((a,b) => b.val - a.val).slice(0, 5);
+            if(charts.deptBar) charts.deptBar.destroy();
+            charts.deptBar = new Chart(document.getElementById('deptBarChart').getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: top5.map(i => i.name),
+                    datasets: [{ label: 'จำนวนเคส', data: top5.map(i => i.val), backgroundColor: '#00897b', borderRadius: 3 }]
+                },
+                options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+            });
+        }
+
+        // กราฟ 4: เส้นเทรนด์
+        function drawTrendLine(trendStats) {
+            if(charts.trendLine) charts.trendLine.destroy();
+            charts.trendLine = new Chart(document.getElementById('trendLineChart').getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels: ['ปี 66', 'ปี 67', 'ปี 68', 'ปี 69(4เดือน)'],
                     datasets: [{
-                        label: 'จำนวนรวมผู้ป่วย (ราย)',
-                        data: dataValues,
-                        backgroundColor: type === 'opd' ? 'rgba(76, 175, 80, 0.7)' : type === 'ipd' ? 'rgba(255, 152, 0, 0.7)' : 'rgba(63, 81, 181, 0.7)',
-                        borderColor: type === 'opd' ? '#4caf50' : type === 'ipd' ? '#ff9800' : '#3f51b5',
-                        borderWidth: 1,
-                        borderRadius: 4
+                        label: 'จำนวนเคสรวม',
+                        data: [trendStats["66"], trendStats["67"], trendStats["68"], trendStats["69"]],
+                        borderColor: '#ff9800', backgroundColor: 'rgba(255, 152, 0, 0.2)', borderWidth: 3, pointRadius: 5, fill: true, tension: 0.3
                     }]
                 },
-                options: {
-                    indexAxis: 'y', // กราฟแนวนอน
-                    responsive: true,
-                    plugins: { legend: { display: false } }
-                }
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
             });
         }
     </script>
