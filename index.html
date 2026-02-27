@@ -28,11 +28,11 @@
         .kpi-value { font-size: 2.2em; font-weight: bold; }
         .val-cases { color: #1976d2; } .val-qty { color: #d32f2f; } .val-opd { color: #388e3c; } .val-ipd { color: #f57c00; }
 
-        /* พื้นที่กราฟ 2 คอลัมน์ */
-        .charts-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 20px; margin-bottom: 30px; }
+        /* พื้นที่กราฟ 2x2 Grid (บน 2 ล่าง 2) */
+        .charts-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; margin-bottom: 30px; }
         .chart-card { background: white; padding: 15px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
         .chart-title { text-align: center; color: #333; font-size: 1.1em; margin-bottom: 15px; font-weight: bold; border-bottom: 1px solid #eee; padding-bottom: 10px; }
-        .canvas-wrapper { position: relative; width: 100%; height: 300px; }
+        .canvas-wrapper { position: relative; width: 100%; height: 320px; } /* ปรับความสูงกราฟให้สมดุล */
 
         /* พื้นที่ตารางด้านล่าง */
         .table-card { background: white; padding: 15px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 30px; }
@@ -50,8 +50,8 @@
         .footer-link a:hover { background-color: #b71c1c; color: white; }
         
         /* มือถือ */
-        @media (max-width: 600px) {
-            .charts-grid { grid-template-columns: 1fr; }
+        @media (max-width: 800px) {
+            .charts-grid { grid-template-columns: 1fr; } /* บนมือถือจะเรียง 1 คอลัมน์ลงมา */
         }
     </style>
 </head>
@@ -163,7 +163,6 @@
             header: true,
             complete: function(results) {
                 rawDataGlobal = results.data.filter(row => row["name_diag"] || row["drug_name"]).map(row => {
-                    // ทำความสะอาดและดึงข้อมูลแต่ละคอลัมน์
                     const diag = (row["name_diag"] || row["diag"] || row["pdx"] || "ไม่ระบุ").trim();
                     const tname = (row["Tname"] || row["tname"] || "").trim();
                     const drug = (row["drug_name"] || row["drug"] || "ไม่ระบุยา").trim();
@@ -210,7 +209,7 @@
             const dFilter = document.getElementById("drugFilter").value;
             const depFilter = document.getElementById("deptFilter").value;
 
-            // 1. กรองข้อมูลหลัก (ใช้ทั้ง 3 Slicers)
+            // 1. กรองข้อมูลหลัก (ใช้ทั้ง 3 Slicers สำหรับ ตาราง และ กราฟ 3 ตัวแรก)
             const filtered = rawDataGlobal.filter(row => {
                 const matchY = (yFilter === "all" || row.year === yFilter);
                 const matchD = (dFilter === "all" || row.drug === dFilter);
@@ -242,21 +241,32 @@
                 if (!deptStats[row.dept]) deptStats[row.dept] = 0;
                 deptStats[row.dept]++;
 
-                // ข้อมูลตาราง (จัดกลุ่มตาม โรค + ยา)
+                // ข้อมูลตาราง
                 const tableKey = fullDiag + "|" + row.drug;
                 if(!tableMap[tableKey]) tableMap[tableKey] = { diag: fullDiag, drug: row.drug, dept: row.dept, cases: 0, qty: 0 };
                 tableMap[tableKey].cases++;
                 tableMap[tableKey].qty += row.qty;
             });
 
-            // 2. ข้อมูลกราฟเทรนด์ 4 ปี (เมิน Slicer ปี, ใช้แค่ ยา กับ แผนก)
-            const trendStats = { "66": 0, "67": 0, "68": 0, "69": 0 };
+            // 2. ข้อมูลกราฟเทรนด์ 4 ปี (แยก OPD/IPD และเมิน Slicer ปี)
+            const trendStats = { 
+                "66": { total: 0, opd: 0, ipd: 0 }, 
+                "67": { total: 0, opd: 0, ipd: 0 }, 
+                "68": { total: 0, opd: 0, ipd: 0 }, 
+                "69": { total: 0, opd: 0, ipd: 0 } 
+            };
+            
             rawDataGlobal.filter(row => {
+                // สำหรับกราฟเทรนด์ กรองแค่ ยา และ แผนก เท่านั้น
                 const matchD = (dFilter === "all" || row.drug === dFilter);
                 const matchDep = (depFilter === "all" || row.dept === depFilter);
                 return matchD && matchDep;
             }).forEach(row => {
-                if(row.year !== "other") trendStats[row.year]++;
+                if(row.year !== "other") {
+                    trendStats[row.year].total++;
+                    if(row.type === "opd") trendStats[row.year].opd++;
+                    else trendStats[row.year].ipd++;
+                }
             });
 
             // อัปเดต KPI
@@ -269,7 +279,7 @@
             document.getElementById("titleDrugChart").innerText = dFilter === "all" ? "🍩 สัดส่วนการใช้ยา (ตามจำนวนเคส)" : `🍩 สัดส่วนแผนกที่จ่ายยา ${dFilter}`;
 
             // วาดกราฟ
-            drawDrugDonut(dFilter === "all" ? drugStats : deptStats); // ถ้าเลือกยา 1 ตัว ให้โดนัทโชว์สัดส่วนแผนกแทน
+            drawDrugDonut(dFilter === "all" ? drugStats : deptStats); 
             drawDiagBar(diagStats);
             drawDeptBar(deptStats);
             drawTrendLine(trendStats);
@@ -290,7 +300,6 @@
             document.getElementById("dataTableBody").innerHTML = tbody;
         }
 
-        // กราฟ 1: โดนัทชาร์ต
         function drawDrugDonut(statsObj) {
             const sorted = Object.keys(statsObj).map(k => ({name: k, val: statsObj[k]})).sort((a,b) => b.val - a.val);
             const top5 = sorted.slice(0, 5);
@@ -308,7 +317,6 @@
             });
         }
 
-        // กราฟ 2: 10 อันดับโรค
         function drawDiagBar(statsObj) {
             const top10 = Object.keys(statsObj).map(k => ({name: k, val: statsObj[k]})).sort((a,b) => b.val - a.val).slice(0, 10);
             if(charts.diagBar) charts.diagBar.destroy();
@@ -322,7 +330,6 @@
             });
         }
 
-        // กราฟ 3: 5 อันดับแผนก
         function drawDeptBar(statsObj) {
             const top5 = Object.keys(statsObj).map(k => ({name: k, val: statsObj[k]})).sort((a,b) => b.val - a.val).slice(0, 5);
             if(charts.deptBar) charts.deptBar.destroy();
@@ -336,20 +343,35 @@
             });
         }
 
-        // กราฟ 4: เส้นเทรนด์
         function drawTrendLine(trendStats) {
             if(charts.trendLine) charts.trendLine.destroy();
             charts.trendLine = new Chart(document.getElementById('trendLineChart').getContext('2d'), {
                 type: 'line',
                 data: {
-                    labels: ['ปี 66', 'ปี 67', 'ปี 68', 'ปี 69(4เดือน)'],
-                    datasets: [{
-                        label: 'จำนวนเคสรวม',
-                        data: [trendStats["66"], trendStats["67"], trendStats["68"], trendStats["69"]],
-                        borderColor: '#ff9800', backgroundColor: 'rgba(255, 152, 0, 0.2)', borderWidth: 3, pointRadius: 5, fill: true, tension: 0.3
-                    }]
+                    labels: ['ปี 66', 'ปี 67', 'ปี 68', 'ปี 69(4ด.)'],
+                    datasets: [
+                        {
+                            label: 'รวมทั้งหมด (Total)',
+                            data: [trendStats["66"].total, trendStats["67"].total, trendStats["68"].total, trendStats["69"].total],
+                            borderColor: '#1976d2', backgroundColor: '#1976d2', borderWidth: 3, pointRadius: 5, tension: 0.3
+                        },
+                        {
+                            label: 'OPD (ผู้ป่วยนอก)',
+                            data: [trendStats["66"].opd, trendStats["67"].opd, trendStats["68"].opd, trendStats["69"].opd],
+                            borderColor: '#388e3c', backgroundColor: '#388e3c', borderWidth: 2, pointRadius: 4, tension: 0.3, borderDash: [5, 5]
+                        },
+                        {
+                            label: 'IPD (ผู้ป่วยใน)',
+                            data: [trendStats["66"].ipd, trendStats["67"].ipd, trendStats["68"].ipd, trendStats["69"].ipd],
+                            borderColor: '#f57c00', backgroundColor: '#f57c00', borderWidth: 2, pointRadius: 4, tension: 0.3, borderDash: [5, 5]
+                        }
+                    ]
                 },
-                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+                options: { 
+                    responsive: true, maintainAspectRatio: false, 
+                    plugins: { legend: { position: 'bottom' } }, 
+                    scales: { y: { beginAtZero: true } } 
+                }
             });
         }
     </script>
